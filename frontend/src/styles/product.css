@@ -1,0 +1,26 @@
+.product-manage {
+  padding: 16px;
+  animation: fadeIn 0.5s ease-out;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.product-table :deep(.el-table) {
+  --el-table-border-color: #edf2f7;
+  --el-table-header-bg-color: #f8fafc;
+}
+
+.product-table :deep(.el-table__row) {
+  transition: background-color 0.2s ease;
+}
+
+.product-table :deep(.el-table__row:hover > td.el-table__cell) {
+  background-color: #f0f4ff !important;
+}
+
+.product-table :deep(.el-tag--small) {
+  border-radius: 6px;
+  font-weight: 600;
+  padding: 0 10px;
+}

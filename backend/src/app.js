@@ -2,24 +2,28 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
-// 创建日志目录
+const logger = require('./config/logger');
+const { syncDatabase, User, Employee, Product } = require('./models');
+const errorHandler = require('./middlewares/errorHandler');
+
+const userRoutes = require('./routes/users');
+const employeeRoutes = require('./routes/employees');
+const productRoutes = require('./routes/products');
+
 const logsDir = path.join(__dirname, '..', 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
 
-const logger = require('./config/logger');
-const { syncDatabase, User, Employee, Product } = require('./models');
-const bcrypt = require('bcryptjs');
-const userRoutes = require('./routes/users');
-const employeeRoutes = require('./routes/employees');
-const productRoutes = require('./routes/products');
-
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// 初始化演示数据
+/**
+ * @description 初始化演示数据
+ * @returns {Promise<void>}
+ */
 const seedDemoData = async () => {
   try {
     const userCount = await User.count();
@@ -49,7 +53,7 @@ const seedDemoData = async () => {
       ]);
       logger.info('员工演示数据初始化完成');
     }
-    
+
     const productCount = await Product.count();
     if (productCount === 0) {
       logger.info('初始化商品演示数据...');
@@ -72,47 +76,40 @@ const seedDemoData = async () => {
   }
 };
 
-// 中间件
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'x-user-info']
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 请求日志
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.url} - ${req.ip}`);
   next();
 });
 
-// 路由
 app.use('/api/users', userRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/products', productRoutes);
 
-// 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 错误处理
-app.use((err, req, res, next) => {
-  logger.error('服务器错误:', err.message);
-  res.status(500).json({ status: 500, message: '服务器内部错误' });
-});
+app.use(errorHandler);
 
-// 启动服务器
+/**
+ * @description 启动服务器
+ * @returns {Promise<void>}
+ */
 const startServer = async () => {
   try {
-    // 等待数据库连接
     let retries = 5;
     while (retries > 0) {
       try {
         await syncDatabase();
-        // 初始化演示数据
         await seedDemoData();
         break;
       } catch (error) {
@@ -122,7 +119,7 @@ const startServer = async () => {
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
-    
+
     app.listen(PORT, '0.0.0.0', () => {
       logger.info(`服务器启动成功，端口: ${PORT}`);
     });

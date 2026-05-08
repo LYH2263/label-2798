@@ -1,30 +1,38 @@
-import { ref, reactive, computed } from 'vue'
+import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-export function useDialog(formRef, fetchData, createFn, updateFn) {
+export function useDialog(options = {}) {
+  const { form, formRef, fetchData, createFn, updateFn, deleteFn } = options
+
   const dialogVisible = ref(false)
   const dialogTitle = ref('新增')
   const submitLoading = ref(false)
   const isEdit = ref(false)
   const currentId = ref(null)
 
-  const resetForm = (defaultForm = {}) => {
-    Object.assign(formRef.value || {}, defaultForm)
+  const defaultForm = options.defaultForm || {}
+
+  const resetForm = () => {
+    Object.assign(form, defaultForm)
   }
 
-  const openAdd = (defaultForm = {}) => {
+  const openAdd = (customDefault = {}) => {
     isEdit.value = false
     dialogTitle.value = '新增'
     currentId.value = null
-    resetForm(defaultForm)
+    resetForm()
+    if (Object.keys(customDefault).length > 0) {
+      Object.assign(form, customDefault)
+    }
     dialogVisible.value = true
   }
 
-  const openEdit = (row, defaultForm = {}) => {
+  const openEdit = (row, customDefault = {}) => {
     isEdit.value = true
     dialogTitle.value = '编辑'
     currentId.value = row.id
-    Object.assign(formRef.value || {}, { ...defaultForm, ...row })
+    resetForm()
+    Object.assign(form, { ...defaultForm, ...customDefault, ...row })
     dialogVisible.value = true
   }
 
@@ -39,17 +47,19 @@ export function useDialog(formRef, fetchData, createFn, updateFn) {
         cancelButtonText: '取消',
         type: 'warning'
       })
-      if (updateFn) {
-        await updateFn(row.id, null, true)
+      if (deleteFn) {
+        await deleteFn(row.id)
       }
       ElMessage.success('删除成功')
       if (fetchData) {
         fetchData()
       }
+      return true
     } catch (error) {
       if (error !== 'cancel') {
-        ElMessage.error('删除失败')
+        console.error('删除失败:', error)
       }
+      return false
     }
   }
 
@@ -68,12 +78,12 @@ export function useDialog(formRef, fetchData, createFn, updateFn) {
     try {
       if (isEdit.value) {
         if (updateFn) {
-          await updateFn(currentId.value, { ...formRef.value, ...submitData })
+          await updateFn(currentId.value, { ...form, ...submitData })
         }
         ElMessage.success('更新成功')
       } else {
         if (createFn) {
-          await createFn({ ...formRef.value, ...submitData })
+          await createFn({ ...form, ...submitData })
         }
         ElMessage.success('创建成功')
       }

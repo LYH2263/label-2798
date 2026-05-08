@@ -76,18 +76,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
+import { useAuth } from '../composables/useAuth'
 
 const router = useRouter()
-const userInfo = ref({ username: '', role: '' })
+const { userInfo, initUserInfo, logout } = useAuth()
 const breadcrumbTitle = ref('商品管理')
 
 onMounted(() => {
-  const stored = sessionStorage.getItem('userInfo')
-  if (stored) {
-    userInfo.value = JSON.parse(stored)
-  }
-  // 根据路由设置面包屑
+  initUserInfo()
   updateBreadcrumb()
 })
 
@@ -102,24 +99,24 @@ const updateBreadcrumb = () => {
   }
 }
 
-// 监听路由变化
 router.afterEach(() => {
   updateBreadcrumb()
 })
 
-const handleCommand = (command) => {
+const handleCommand = async (command) => {
   if (command === 'profile') {
     router.push('/main/profile')
   } else if (command === 'logout') {
-    ElMessageBox.confirm('确定要退出登录吗？', '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    }).then(() => {
-      sessionStorage.removeItem('userInfo')
-      ElMessage.success('退出成功')
+    try {
+      await ElMessageBox.confirm('确定要退出登录吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      })
+      logout('退出成功')
       router.push('/login')
-    }).catch(() => {})
+    } catch {
+    }
   }
 }
 </script>

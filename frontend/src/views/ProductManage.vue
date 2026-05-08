@@ -236,7 +236,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
+          <el-button type="primary" :loading="submitLoading" @click="handleFormSubmit">
             确定
           </el-button>
         </span>
@@ -290,42 +290,19 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import http from '../utils/http'
+import { ElMessage } from 'element-plus'
+import { usePagination } from '../composables/usePagination'
+import { useDialog } from '../composables/useDialog'
+import { useLoading } from '../composables/useLoading'
+import { productApi } from '../api'
 
-// 搜索表单
 const searchForm = reactive({
   keyword: '',
   category: '',
   status: ''
 })
 
-// 分页相关
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-const loading = ref(false)
-const productList = ref([])
-
-// 对话框相关
-const dialogVisible = ref(false)
-const dialogTitle = ref('新增商品')
 const formRef = ref()
-const submitLoading = ref(false)
-const isEdit = ref(false)
-const currentId = ref(null)
-
-// 库存对话框相关
-const stockDialogVisible = ref(false)
-const stockFormRef = ref()
-const stockLoading = ref(false)
-const currentProduct = ref({ productCode: '', name: '', stock: 0, unit: '', minStock: 10 })
-const stockForm = reactive({
-  type: 'in',
-  quantity: 1
-})
-
-// 表单数据
 const form = reactive({
   productCode: '',
   name: '',
@@ -343,7 +320,6 @@ const form = reactive({
   description: ''
 })
 
-// 表单验证规则
 const formRules = {
   productCode: [
     { required: true, message: '请输入商品编码', trigger: 'blur' },
@@ -359,62 +335,82 @@ const formRules = {
   stock: [{ required: true, message: '请输入库存', trigger: 'blur' }]
 }
 
+const stockDialogVisible = ref(false)
+const stockFormRef = ref()
+const { loading: stockLoading, runWithLoading } = useLoading()
+const currentProduct = ref({ productCode: '', name: '', stock: 0, unit: '', minStock: 10 })
+const stockForm = reactive({
+  type: 'in',
+  quantity: 1
+})
+
 const stockRules = {
   quantity: [{ required: true, message: '请输入数量', trigger: 'blur' }]
 }
 
-// 获取商品列表
-const fetchProductList = async () => {
-  loading.value = true
-  try {
-    const res = await http.get('/products', {
-      params: {
-        page: page.value,
-        pageSize: pageSize.value,
-        keyword: searchForm.keyword,
-        category: searchForm.category,
-        status: searchForm.status
-      }
-    })
-    if (res.status === 200) {
-      productList.value = res.data.list
-      total.value = res.data.total
-    }
-  } catch (error) {
-    ElMessage.error('获取商品列表失败')
-  } finally {
-    loading.value = false
+const defaultForm = {
+  productCode: '',
+  name: '',
+  category: '',
+  brand: '',
+  unit: '个',
+  price: 0,
+  cost: 0,
+  stock: 0,
+  minStock: 10,
+  maxStock: 1000,
+  warehouse: '',
+  location: '',
+  supplier: '',
+  description: ''
+}
+
+const fetchList = (params = {}) => {
+  const queryParams = {
+    ...params,
+    keyword: searchForm.keyword,
+    category: searchForm.category,
+    status: searchForm.status
   }
+  return productApi.getList(queryParams)
 }
 
-// 搜索
-const handleSearch = () => {
-  page.value = 1
-  fetchProductList()
+const {
+  page,
+  pageSize,
+  total,
+  list: productList,
+  loading,
+  fetchData: fetchProductList,
+  reset: resetPagination,
+  handleSizeChange,
+  handleCurrentChange
+} = usePagination(fetchList)
+
+const validateForm = async () => {
+  if (!formRef.value) return false
+  await formRef.value.validate()
+  return true
 }
 
-// 重置
-const handleReset = () => {
-  searchForm.keyword = ''
-  searchForm.category = ''
-  searchForm.status = ''
-  page.value = 1
-  fetchProductList()
-}
+const {
+  dialogVisible,
+  dialogTitle,
+  submitLoading,
+  openAdd,
+  openEdit,
+  handleDelete: deleteProduct,
+  handleSubmit
+} = useDialog({
+  form,
+  formRef,
+  fetchData: fetchProductList,
+  defaultForm,
+  createFn: (data) => productApi.create(data),
+  updateFn: (id, data) => productApi.update(id, data),
+  deleteFn: (id) => productApi.delete(id)
+})
 
-// 分页大小变化
-const handleSizeChange = (val) => {
-  pageSize.value = val
-  fetchProductList()
-}
-
-// 页码变化
-const handleCurrentChange = (val) => {
-  page.value = val
-  fetchProductList()
-}
-
-// 状态显示
 const getStatusType = (status) => {
   const types = { normal: 'success', low_stock: 'warning', out_of_stock: 'danger', discontinued: 'info' }
   return types[status] || 'info'
@@ -425,64 +421,37 @@ const getStatusText = (status) => {
   return texts[status] || status
 }
 
-// 库存颜色
 const getStockColor = (stock, minStock) => {
   if (stock === 0) return '#f56c6c'
   if (stock < minStock) return '#e6a23c'
   return '#67c23a'
 }
 
-// 新增
+const handleSearch = () => {
+  resetPagination()
+  fetchProductList()
+}
+
+const handleReset = () => {
+  searchForm.keyword = ''
+  searchForm.category = ''
+  searchForm.status = ''
+  resetPagination()
+  fetchProductList()
+}
+
 const handleAdd = () => {
-  isEdit.value = false
-  dialogTitle.value = '新增商品'
-  currentId.value = null
-  Object.assign(form, {
-    productCode: '',
-    name: '',
-    category: '',
-    brand: '',
-    unit: '个',
-    price: 0,
-    cost: 0,
-    stock: 0,
-    minStock: 10,
-    maxStock: 1000,
-    warehouse: '',
-    location: '',
-    supplier: '',
-    description: ''
-  })
-  dialogVisible.value = true
+  openAdd()
 }
 
-// 编辑
 const handleEdit = (row) => {
-  isEdit.value = true
-  dialogTitle.value = '编辑商品'
-  currentId.value = row.id
-  Object.assign(form, { ...row })
-  dialogVisible.value = true
+  openEdit(row)
 }
 
-// 删除
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除商品 "${row.name}" 吗？`, '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await http.delete(`/products/${row.id}`)
-      ElMessage.success('删除成功')
-      fetchProductList()
-    } catch (error) {
-      ElMessage.error('删除失败')
-    }
-  }).catch(() => {})
+  deleteProduct(row, `确定要删除商品 "${row.name}" 吗？`)
 }
 
-// 库存管理
 const handleStock = (row) => {
   currentProduct.value = { ...row }
   stockForm.type = 'in'
@@ -490,53 +459,36 @@ const handleStock = (row) => {
   stockDialogVisible.value = true
 }
 
-// 提交库存操作
+const validateStockForm = async () => {
+  if (!stockFormRef.value) return false
+  await stockFormRef.value.validate()
+  return true
+}
+
 const handleStockSubmit = async () => {
-  const valid = await stockFormRef.value.validate().catch(() => false)
-  if (!valid) return
-  
-  stockLoading.value = true
   try {
-    const res = await http.patch(`/products/${currentProduct.value.id}/stock`, stockForm)
-    if (res.status === 200) {
-      ElMessage.success('库存更新成功')
-      stockDialogVisible.value = false
-      fetchProductList()
-    }
-  } catch (error) {
-    ElMessage.error('库存更新失败')
-  } finally {
-    stockLoading.value = false
+    await validateStockForm()
+  } catch {
+    return
+  }
+
+  const success = await runWithLoading(async () => {
+    await productApi.updateStock(currentProduct.value.id, {
+      quantity: stockForm.quantity,
+      type: stockForm.type
+    })
+    return true
+  })
+
+  if (success) {
+    ElMessage.success('库存更新成功')
+    stockDialogVisible.value = false
+    fetchProductList()
   }
 }
 
-// 提交表单
-const handleSubmit = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  
-  submitLoading.value = true
-  try {
-    if (isEdit.value) {
-      const res = await http.put(`/products/${currentId.value}`, form)
-      if (res.status === 200) {
-        ElMessage.success('更新成功')
-        dialogVisible.value = false
-        fetchProductList()
-      }
-    } else {
-      const res = await http.post('/products', form)
-      if (res.status === 201) {
-        ElMessage.success('创建成功')
-        dialogVisible.value = false
-        fetchProductList()
-      }
-    }
-  } catch (error) {
-    ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
-  } finally {
-    submitLoading.value = false
-  }
+const handleFormSubmit = () => {
+  handleSubmit(validateForm)
 }
 
 onMounted(() => {

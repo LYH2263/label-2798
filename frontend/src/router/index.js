@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Login from '../views/Login.vue'
-import Main from '../views/Main.vue'
-import EmployeeManage from '../views/EmployeeManage.vue'
-import ProductManage from '../views/ProductManage.vue'
-import Profile from '../views/Profile.vue'
+
+const Login = () => import('../views/Login.vue')
+const Main = () => import('../views/Main.vue')
+const ProductManage = () => import('../views/ProductManage.vue')
+const EmployeeManage = () => import('../views/EmployeeManage.vue')
+const Profile = () => import('../views/Profile.vue')
 
 const routes = [
   {
@@ -13,28 +14,33 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: Login
+    component: Login,
+    meta: { requiresAuth: false }
   },
   {
     path: '/main',
     name: 'Main',
     component: Main,
+    meta: { requiresAuth: true },
     redirect: '/main/products',
     children: [
       {
         path: 'products',
         name: 'ProductManage',
-        component: ProductManage
+        component: ProductManage,
+        meta: { requiresAuth: true }
       },
       {
         path: 'employees',
         name: 'EmployeeManage',
-        component: EmployeeManage
+        component: EmployeeManage,
+        meta: { requiresAuth: true }
       },
       {
         path: 'profile',
         name: 'Profile',
-        component: Profile
+        component: Profile,
+        meta: { requiresAuth: true }
       }
     ]
   }
@@ -45,16 +51,21 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
 router.beforeEach((to, from, next) => {
   const userInfo = sessionStorage.getItem('userInfo')
-  
-  if (to.path !== '/login' && !userInfo) {
-    next('/login')
-  } else if (to.path === '/login' && userInfo) {
-    next('/main')
+
+  if (to.meta.requiresAuth === false) {
+    if (userInfo) {
+      next('/main')
+    } else {
+      next()
+    }
   } else {
-    next()
+    if (userInfo) {
+      next()
+    } else {
+      next('/login')
+    }
   }
 })
 

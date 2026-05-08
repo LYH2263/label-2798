@@ -3,7 +3,6 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 
-// 创建日志目录
 const logsDir = path.join(__dirname, '..', 'logs');
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
@@ -12,6 +11,8 @@ if (!fs.existsSync(logsDir)) {
 const logger = require('./config/logger');
 const { syncDatabase, User, Employee, Product } = require('./models');
 const bcrypt = require('bcryptjs');
+const errorHandler = require('./middlewares/errorHandler');
+
 const userRoutes = require('./routes/users');
 const employeeRoutes = require('./routes/employees');
 const productRoutes = require('./routes/products');
@@ -19,7 +20,11 @@ const productRoutes = require('./routes/products');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// 初始化演示数据
+/**
+ * @description 初始化演示数据
+ * @returns {Promise<void>}
+ * @throws {Error} 初始化失败时抛出
+ */
 const seedDemoData = async () => {
   try {
     const userCount = await User.count();
@@ -72,47 +77,40 @@ const seedDemoData = async () => {
   }
 };
 
-// 中间件
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'X-User-Id']
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 请求日志
 app.use((req, res, next) => {
   logger.info(`${req.method} ${req.url} - ${req.ip}`);
   next();
 });
 
-// 路由
 app.use('/api/users', userRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/products', productRoutes);
 
-// 健康检查
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 错误处理
-app.use((err, req, res, next) => {
-  logger.error('服务器错误:', err.message);
-  res.status(500).json({ status: 500, message: '服务器内部错误' });
-});
+app.use(errorHandler);
 
-// 启动服务器
+/**
+ * @description 启动服务器
+ * @returns {Promise<void>}
+ */
 const startServer = async () => {
   try {
-    // 等待数据库连接
     let retries = 5;
     while (retries > 0) {
       try {
         await syncDatabase();
-        // 初始化演示数据
         await seedDemoData();
         break;
       } catch (error) {

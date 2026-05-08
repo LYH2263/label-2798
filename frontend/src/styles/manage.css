@@ -1,0 +1,135 @@
+.manage-page {
+  padding: 16px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: fadeIn 0.5s ease-out;
+  gap: 18px;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.add-btn {
+  height: 44px;
+  padding: 0 24px;
+  font-weight: 600;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+}
+
+.add-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.35);
+}
+
+.search-card {
+  margin-bottom: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.search-card :deep(.el-card__body) {
+  padding: 16px 18px;
+}
+
+.search-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.search-form :deep(.el-form-item) {
+  margin-right: 0;
+  align-items: center;
+}
+
+.search-form :deep(.el-form-item__label) {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.add-btn-item {
+  margin-left: auto;
+  margin-right: 0 !important;
+}
+
+.table-card {
+  border-radius: 12px;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+.table-card :deep(.el-card__body) {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+
+.data-table :deep(.el-table__body-wrapper) {
+  max-height: calc(100vh - 450px);
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.data-table :deep(.el-table__body-wrapper::-webkit-scrollbar) {
+  width: 0;
+  height: 0;
+}
+
+.pagination-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+:deep(.el-dialog__header) {
+  border-bottom: 1px solid #ebeef5;
+  padding: 20px;
+  margin: 0;
+}
+
+:deep(.el-dialog__body) {
+  padding: 20px;
+}
+
+:deep(.el-dialog__footer) {
+  border-top: 1px solid #ebeef5;
+  padding: 20px;
+}
+
+.dialog-form {
+  padding: 10px 0;
+}
+
+@media (max-width: 768px) {
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-form :deep(.el-form-item) {
+    margin-right: 0;
+    width: 100%;
+  }
+
+  .search-form :deep(.el-form-item__content) {
+    width: 100%;
+  }
+
+  .search-form :deep(.el-input),
+  .search-form :deep(.el-select) {
+    width: 100% !important;
+  }
+}

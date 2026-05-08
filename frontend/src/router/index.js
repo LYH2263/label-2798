@@ -1,9 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Login from '../views/Login.vue'
-import Main from '../views/Main.vue'
-import EmployeeManage from '../views/EmployeeManage.vue'
-import ProductManage from '../views/ProductManage.vue'
-import Profile from '../views/Profile.vue'
 
 const routes = [
   {
@@ -13,28 +8,33 @@ const routes = [
   {
     path: '/login',
     name: 'Login',
-    component: Login
+    component: () => import('../views/Login.vue'),
+    meta: { requiresAuth: false }
   },
   {
     path: '/main',
     name: 'Main',
-    component: Main,
+    component: () => import('../views/Main.vue'),
     redirect: '/main/products',
+    meta: { requiresAuth: true },
     children: [
       {
         path: 'products',
         name: 'ProductManage',
-        component: ProductManage
+        component: () => import('../views/ProductManage.vue'),
+        meta: { requiresAuth: true, title: '商品管理' }
       },
       {
         path: 'employees',
         name: 'EmployeeManage',
-        component: EmployeeManage
+        component: () => import('../views/EmployeeManage.vue'),
+        meta: { requiresAuth: true, title: '员工管理' }
       },
       {
         path: 'profile',
         name: 'Profile',
-        component: Profile
+        component: () => import('../views/Profile.vue'),
+        meta: { requiresAuth: true, title: '个人中心' }
       }
     ]
   }
@@ -45,11 +45,11 @@ const router = createRouter({
   routes
 })
 
-// 路由守卫
 router.beforeEach((to, from, next) => {
   const userInfo = sessionStorage.getItem('userInfo')
-  
-  if (to.path !== '/login' && !userInfo) {
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+
+  if (requiresAuth && !userInfo) {
     next('/login')
   } else if (to.path === '/login' && userInfo) {
     next('/main')

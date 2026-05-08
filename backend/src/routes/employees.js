@@ -1,117 +1,72 @@
 const express = require('express');
 const router = express.Router();
-const { Employee } = require('../models');
 const logger = require('../config/logger');
-const { Op } = require('sequelize');
+const { Employee } = require('../models');
+const EmployeeService = require('../services/employeeService');
 
-// 获取员工列表（分页、搜索）
-router.get('/', async (req, res) => {
+const employeeService = new EmployeeService(Employee);
+
+/**
+ * @description 获取员工列表（分页、搜索）
+ */
+router.get('/', async (req, res, next) => {
   try {
-    const { page = 1, pageSize = 10, keyword = '', department = '', status = '' } = req.query;
-    
-    const pageNum = parseInt(page) || 1;
-    const sizeNum = parseInt(pageSize) || 10;
-    const offset = (pageNum - 1) * sizeNum;
-    
-    const where = {};
-    
-    if (keyword) {
-      where[Op.or] = [
-        { name: { [Op.like]: `%${keyword}%` } },
-        { employeeNo: { [Op.like]: `%${keyword}%` } }
-      ];
-    }
-    
-    if (department) {
-      where.department = department;
-    }
-    
-    if (status) {
-      where.status = status;
-    }
-    
-    const { count, rows: employees } = await Employee.findAndCountAll({
-      where,
-      limit: sizeNum,
-      offset: offset,
-      order: [['createdAt', 'DESC']]
-    });
-    
-    logger.info(`获取员工列表: 共 ${count} 条记录, keyword: ${keyword}, department: ${department}, status: ${status}`);
-    
-    res.json({
-      status: 200,
-      data: {
-        list: employees,
-        total: count,
-        page: pageNum,
-        pageSize: sizeNum
-      },
-      message: '获取成功'
-    });
-  } catch (error) {
-    logger.error('获取员工列表失败:', error.message);
-    res.status(500).json({ status: 500, message: '服务器错误' });
+    const result = await employeeService.getEmployees(req.query);
+    logger.info(`获取员工列表: 共 ${result.total} 条记录`);
+    res.json({ status: 200, data: result, message: '获取成功' });
+  } catch (err) {
+    next(err);
   }
 });
 
-// 获取单个员工
-router.get('/:id', async (req, res) => {
+/**
+ * @description 获取单个员工详情
+ */
+router.get('/:id', async (req, res, next) => {
   try {
-    const employee = await Employee.findByPk(req.params.id);
-    if (!employee) {
-      return res.status(404).json({ status: 404, message: '员工不存在' });
-    }
+    const employee = await employeeService.getEmployeeById(req.params.id);
     res.json({ status: 200, data: employee, message: '获取成功' });
-  } catch (error) {
-    logger.error('获取员工详情失败:', error.message);
-    res.status(500).json({ status: 500, message: '服务器错误' });
+  } catch (err) {
+    next(err);
   }
 });
 
-// 创建员工
-router.post('/', async (req, res) => {
+/**
+ * @description 创建员工
+ */
+router.post('/', async (req, res, next) => {
   try {
-    const employee = await Employee.create(req.body);
+    const employee = await employeeService.createEmployee(req.body);
     logger.info(`创建员工: ${employee.name}`);
     res.json({ status: 201, data: employee, message: '创建成功' });
-  } catch (error) {
-    logger.error('创建员工失败:', error.message);
-    res.status(500).json({ status: 500, message: error.message });
+  } catch (err) {
+    next(err);
   }
 });
 
-// 更新员工
-router.put('/:id', async (req, res) => {
+/**
+ * @description 更新员工
+ */
+router.put('/:id', async (req, res, next) => {
   try {
-    const employee = await Employee.findByPk(req.params.id);
-    if (!employee) {
-      return res.status(404).json({ status: 404, message: '员工不存在' });
-    }
-    
-    await employee.update(req.body);
+    const employee = await employeeService.updateEmployee(req.params.id, req.body);
     logger.info(`更新员工: ${employee.name}`);
     res.json({ status: 200, data: employee, message: '更新成功' });
-  } catch (error) {
-    logger.error('更新员工失败:', error.message);
-    res.status(500).json({ status: 500, message: error.message });
+  } catch (err) {
+    next(err);
   }
 });
 
-// 删除员工
-router.delete('/:id', async (req, res) => {
+/**
+ * @description 删除员工
+ */
+router.delete('/:id', async (req, res, next) => {
   try {
-    const employee = await Employee.findByPk(req.params.id);
-    if (!employee) {
-      return res.status(404).json({ status: 404, message: '员工不存在' });
-    }
-    
-    await employee.destroy();
-    logger.info(`删除员工: ${employee.name}`);
+    await employeeService.deleteEmployee(req.params.id);
+    logger.info(`删除员工 ID: ${req.params.id}`);
     res.json({ status: 200, message: '删除成功' });
-  } catch (error) {
-    logger.error('删除员工失败:', error.message);
-    res.status(500).json({ status: 500, message: '服务器错误' });
+  } catch (err) {
+    next(err);
   }
 });
 

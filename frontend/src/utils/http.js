@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 
-// 创建 axios 实例
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   timeout: 10000,
@@ -10,24 +9,68 @@ const http = axios.create({
   }
 })
 
-// 请求拦截器
 http.interceptors.request.use(
   (config) => {
+    const userInfo = sessionStorage.getItem('userInfo')
+    if (userInfo) {
+      const { id } = JSON.parse(userInfo)
+      config.headers['X-User-Id'] = id
+    }
     return config
   },
   (error) => {
+    console.error('请求错误:', error)
     return Promise.reject(error)
   }
 )
 
-// 响应拦截器
 http.interceptors.response.use(
   (response) => {
-    return response.data
+    const { data } = response
+
+    if (data && (data.status === 200 || data.status === 201)) {
+      return data
+    }
+
+    if (data && data.message) {
+      ElMessage.error(data.message)
+      return Promise.reject(new Error(data.message))
+    }
+
+    return data
   },
   (error) => {
-    const message = error.response?.data?.message || '网络请求失败'
-    ElMessage.error(message)
+    if (error.response) {
+      const { status, data } = error.response
+      switch (status) {
+        case 401:
+          ElMessage.error(data?.message || '登录已过期，请重新登录')
+          sessionStorage.removeItem('userInfo')
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login'
+          }
+          break
+        case 403:
+          ElMessage.error(data?.message || '权限不足')
+          break
+        case 404:
+          ElMessage.error(data?.message || '请求的资源不存在')
+          break
+        case 400:
+          ElMessage.error(data?.message || '请求参数错误')
+          break
+        case 500:
+          ElMessage.error(data?.message || '服务器内部错误')
+          break
+        default:
+          ElMessage.error(data?.message || '网络请求失败')
+      }
+    } else if (error.request) {
+      ElMessage.error('网络连接失败，请检查网络')
+    } else {
+      ElMessage.error(error.message || '网络请求失败')
+    }
+
     return Promise.reject(error)
   }
 )

@@ -195,7 +195,7 @@
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="dialogVisible = false">取消</el-button>
-          <el-button type="primary" :loading="submitLoading" @click="handleSubmit">
+          <el-button type="primary" :loading="submitLoading" @click="handleFormSubmit">
             确定
           </el-button>
         </span>
@@ -205,33 +205,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import http from '../utils/http'
+import { ref, reactive, onMounted, computed } from 'vue'
+import { usePagination } from '../composables/usePagination'
+import { useDialog } from '../composables/useDialog'
+import { employeeApi } from '../api'
 
-// 搜索表单
 const searchForm = reactive({
   keyword: '',
   department: '',
   status: ''
 })
 
-// 分页相关
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-const loading = ref(false)
-const employeeList = ref([])
-
-// 对话框相关
-const dialogVisible = ref(false)
-const dialogTitle = ref('新增员工')
 const formRef = ref()
-const submitLoading = ref(false)
-const isEdit = ref(false)
-const currentId = ref(null)
 
-// 表单数据
 const form = reactive({
   employeeNo: '',
   name: '',
@@ -244,7 +230,6 @@ const form = reactive({
   status: 'active'
 })
 
-// 表单验证规则
 const formRules = {
   employeeNo: [
     { required: true, message: '请输入工号', trigger: 'blur' },
@@ -266,58 +251,62 @@ const formRules = {
   ]
 }
 
-// 获取员工列表
-const fetchEmployeeList = async () => {
-  loading.value = true
-  try {
-    const res = await http.get('/employees', {
-      params: {
-        page: page.value,
-        pageSize: pageSize.value,
-        keyword: searchForm.keyword,
-        department: searchForm.department,
-        status: searchForm.status
-      }
-    })
-    if (res.status === 200) {
-      employeeList.value = res.data.list
-      total.value = res.data.total
-    }
-  } catch (error) {
-    ElMessage.error('获取员工列表失败')
-  } finally {
-    loading.value = false
+const fetchList = (params = {}) => {
+  const queryParams = {
+    ...params,
+    keyword: searchForm.keyword,
+    department: searchForm.department,
+    status: searchForm.status
   }
+  return employeeApi.getList(queryParams)
 }
 
-// 搜索
-const handleSearch = () => {
-  page.value = 1
-  fetchEmployeeList()
+const {
+  page,
+  pageSize,
+  total,
+  list: employeeList,
+  loading,
+  fetchData: fetchEmployeeList,
+  reset: resetPagination,
+  handleSizeChange,
+  handleCurrentChange
+} = usePagination(fetchList)
+
+const validateForm = async () => {
+  if (!formRef.value) return false
+  await formRef.value.validate()
+  return true
 }
 
-// 重置
-const handleReset = () => {
-  searchForm.keyword = ''
-  searchForm.department = ''
-  searchForm.status = ''
-  page.value = 1
-  fetchEmployeeList()
-}
+const {
+  dialogVisible,
+  dialogTitle,
+  submitLoading,
+  openAdd,
+  openEdit,
+  handleDelete: deleteEmployee,
+  handleSubmit
+} = useDialog({
+  form,
+  formRef,
+  fetchData: fetchEmployeeList,
+  defaultForm: {
+    employeeNo: '',
+    name: '',
+    gender: 'male',
+    age: 25,
+    department: '',
+    position: '',
+    phone: '',
+    email: '',
+    status: 'active'
+  },
+  createFn: (data) => employeeApi.create(data),
+  updateFn: (id, data) => employeeApi.update(id, data),
+  deleteFn: (id) => employeeApi.delete(id)
+})
 
-// 分页大小变化
-const handleSizeChange = (val) => {
-  pageSize.value = val
-  fetchEmployeeList()
-}
-
-// 页码变化
-const handleCurrentChange = (val) => {
-  page.value = val
-  fetchEmployeeList()
-}
-
-// 状态显示
 const getStatusType = (status) => {
   const types = { active: 'success', resigned: 'danger', on_leave: 'warning' }
   return types[status] || 'info'
@@ -328,78 +317,33 @@ const getStatusText = (status) => {
   return texts[status] || status
 }
 
-// 新增
+const handleSearch = () => {
+  resetPagination()
+  fetchEmployeeList()
+}
+
+const handleReset = () => {
+  searchForm.keyword = ''
+  searchForm.department = ''
+  searchForm.status = ''
+  resetPagination()
+  fetchEmployeeList()
+}
+
 const handleAdd = () => {
-  isEdit.value = false
-  dialogTitle.value = '新增员工'
-  currentId.value = null
-  Object.assign(form, {
-    employeeNo: '',
-    name: '',
-    gender: 'male',
-    age: 25,
-    department: '',
-    position: '',
-    phone: '',
-    email: '',
-    status: 'active'
-  })
-  dialogVisible.value = true
+  openAdd()
 }
 
-// 编辑
 const handleEdit = (row) => {
-  isEdit.value = true
-  dialogTitle.value = '编辑员工'
-  currentId.value = row.id
-  Object.assign(form, { ...row })
-  dialogVisible.value = true
+  openEdit(row)
 }
 
-// 删除
 const handleDelete = (row) => {
-  ElMessageBox.confirm(`确定要删除员工 "${row.name}" 吗？`, '提示', {
-    confirmButtonText: '确定',
-    cancelButtonText: '取消',
-    type: 'warning'
-  }).then(async () => {
-    try {
-      await http.delete(`/employees/${row.id}`)
-      ElMessage.success('删除成功')
-      fetchEmployeeList()
-    } catch (error) {
-      ElMessage.error('删除失败')
-    }
-  }).catch(() => {})
+  deleteEmployee(row, `确定要删除员工 "${row.name}" 吗？`)
 }
 
-// 提交表单
-const handleSubmit = async () => {
-  const valid = await formRef.value.validate().catch(() => false)
-  if (!valid) return
-  
-  submitLoading.value = true
-  try {
-    if (isEdit.value) {
-      const res = await http.put(`/employees/${currentId.value}`, form)
-      if (res.status === 200) {
-        ElMessage.success('更新成功')
-        dialogVisible.value = false
-        fetchEmployeeList()
-      }
-    } else {
-      const res = await http.post('/employees', form)
-      if (res.status === 201) {
-        ElMessage.success('创建成功')
-        dialogVisible.value = false
-        fetchEmployeeList()
-      }
-    }
-  } catch (error) {
-    ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
-  } finally {
-    submitLoading.value = false
-  }
+const handleFormSubmit = () => {
+  handleSubmit(validateForm)
 }
 
 onMounted(() => {

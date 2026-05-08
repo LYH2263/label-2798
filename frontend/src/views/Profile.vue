@@ -74,22 +74,28 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { User, Lock } from '@element-plus/icons-vue'
-import http from '../utils/http'
+import { useAuth } from '../composables/useAuth'
+import { useLoading } from '../composables/useLoading'
+import { userApi } from '../api'
 
-const userInfo = ref({ username: '', role: '' })
+const { userInfo, initUserInfo, logout } = useAuth()
+const { loading, runWithLoading } = useLoading()
+
 const loginTime = ref('')
-const loading = ref(false)
 const showPasswordDialog = ref(false)
-const passwordForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
 const passwordFormRef = ref(null)
+const passwordForm = ref({
+  oldPassword: '',
+  newPassword: '',
+  confirmPassword: ''
+})
 
 const roleText = computed(() => {
-  return userInfo.value.role === 'admin' ? '管理员' : '普通员工'
+  return userInfo.value?.role === 'admin' ? '管理员' : '普通员工'
 })
 
 const roleType = computed(() => {
-  return userInfo.value.role === 'admin' ? 'danger' : 'primary'
+  return userInfo.value?.role === 'admin' ? 'danger' : 'primary'
 })
 
 const validateConfirmPassword = (rule, value, callback) => {
@@ -115,39 +121,37 @@ const passwordRules = {
 }
 
 onMounted(() => {
-  const stored = sessionStorage.getItem('userInfo')
-  if (stored) {
-    userInfo.value = JSON.parse(stored)
-  }
+  initUserInfo()
   loginTime.value = new Date().toLocaleString('zh-CN')
 })
 
 const handleUpdatePassword = async () => {
   if (!passwordFormRef.value) return
 
-  await passwordFormRef.value.validate(async (valid) => {
-    if (valid) {
-      loading.value = true
-      try {
-        await http.put('/users/password', {
-          id: userInfo.value.id,
-          oldPassword: passwordForm.value.oldPassword,
-          newPassword: passwordForm.value.newPassword
-        })
-        ElMessage.success('密码修改成功，请重新登录')
-        passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
-        showPasswordDialog.value = false
-        setTimeout(() => {
-          sessionStorage.removeItem('userInfo')
-          window.location.href = '/login'
-        }, 1500)
-      } catch (error) {
-        ElMessage.error(error.message || '密码修改失败')
-      } finally {
-        loading.value = false
-      }
-    }
+  try {
+    await passwordFormRef.value.validate()
+  } catch {
+    return
+  }
+
+  const success = await runWithLoading(async () => {
+    await userApi.updatePassword({
+      id: userInfo.value.id,
+      oldPassword: passwordForm.value.oldPassword,
+      newPassword: passwordForm.value.newPassword
+    })
+    return true
   })
+
+  if (success) {
+    ElMessage.success('密码修改成功，请重新登录')
+    passwordForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
+    showPasswordDialog.value = false
+    setTimeout(() => {
+      logout()
+      window.location.href = '/login'
+    }, 1500)
+  }
 }
 </script>
 

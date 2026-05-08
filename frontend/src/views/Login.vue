@@ -59,13 +59,16 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import { User, Lock, Box } from '@element-plus/icons-vue'
-import http from '../utils/http'
+import { useAuth } from '../composables/useAuth'
+import { useLoading } from '../composables/useLoading'
+import { userApi } from '../api'
 
 const router = useRouter()
+const { login } = useAuth()
+const { loading, runWithLoading } = useLoading()
+
 const loginFormRef = ref()
-const loading = ref(false)
 
 const loginForm = reactive({
   username: '',
@@ -83,33 +86,24 @@ const loginRules = {
   ]
 }
 
-// 登录方法 - 按照用户提供的核心代码实现
-const login = async (form) => {
-  let valid = await form.validate()
-  if (valid) {
-    loading.value = true
-    try {
-      const res = await http.post('/users/login', {
-        username: loginForm.username,
-        password: loginForm.password
-      })
-      if (res.status === 200) {
-        sessionStorage.setItem('userInfo', JSON.stringify(res.data))
-        ElMessage.success('登录成功')
-        router.push('/main')
-      } else {
-        ElMessage.error('用户名或密码错误')
-      }
-    } catch (error) {
-      ElMessage.error('登录失败，请稍后重试')
-    } finally {
-      loading.value = false
-    }
+const handleLogin = async () => {
+  try {
+    await loginFormRef.value.validate()
+  } catch {
+    return
   }
-}
 
-const handleLogin = () => {
-  login(loginFormRef.value)
+  const success = await runWithLoading(
+    () => login(
+      (credentials) => userApi.login(credentials),
+      { username: loginForm.username, password: loginForm.password },
+      '登录成功'
+    )
+  )
+
+  if (success) {
+    router.push('/main')
+  }
 }
 </script>
 
